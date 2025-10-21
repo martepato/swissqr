@@ -20,7 +20,7 @@ $QRCONTENT = array(
 	'Version' => '0200',
 	'Coding-Type' => '1',
 	'Account' => '',
-	'CRAdressTyp' => 'K',
+	'CRAdressTyp' => 'S',
 	'CRName' => '',
 	'CRAddressline1' => '',
 	'CRAddressline2' => '',
@@ -36,7 +36,7 @@ $QRCONTENT = array(
 	'UCRCountry' => '',
 	'Amount' => '',	
 	'Currency' => '',
-	'UDAdressTyp' => 'K',
+	'UDAdressTyp' => 'S',
 	'UDName' => '',
 	'UDAddressline1' => '',
 	'UDAddressline2' => '',
@@ -53,6 +53,80 @@ $QRCONTENT = array(
 
 function validate_str($str) {
     return !preg_match('/[^A-Za-z0-9.,:\'\+\-\/()?!"#%&*;<>÷=@_$£\[\]{}` ´~àáâäçèéêëìíîïñòóôöùúûüýßÀÁÂÄÇÈÉÊËÌÍÎÏÒÓÔÖÙÚÛÜÑ]/', $str);
+}
+
+/**
+ * Parse Swiss address from unstructured format
+ * Extracts postcode, city, street, and house number
+ */
+function parse_swiss_address($line1, $line2) {
+	$result = [
+		'street' => '',
+		'houseNumber' => '',
+		'postcode' => '',
+		'city' => '',
+		'valid' => false,
+		'errors' => []
+	];
+	
+	$line1 = trim($line1);
+	$line2 = trim($line2);
+	
+	// Parse Line 2: Postcode + City (MANDATORY)
+	// Remove country code if present
+	$line2 = preg_replace('/^(CH|LI)[-\s]*/i', '', $line2);
+	
+	// Swiss postcode: 4 digits followed by city name
+	if (preg_match('/^(\d{4})\s+(.+)$/u', $line2, $matches)) {
+		$result['postcode'] = $matches[1];
+		$result['city'] = trim($matches[2]);
+		
+		// Validate field lengths
+		if (strlen($result['city']) > 35) {
+			$result['city'] = substr($result['city'], 0, 35);
+		}
+	} else {
+		$result['errors'][] = 'Could not parse postcode and city from line 2';
+		return $result;
+	}
+	
+	// Parse Line 1: Street + House Number (OPTIONAL)
+	if (!empty($line1)) {
+		// Handle PO Box (Postfach)
+		if (preg_match('/^(Postfach|Case postale|Casella postale|P\.?\s*O\.?\s*Box)\s*(.*)$/ui', $line1, $matches)) {
+			$result['street'] = trim($matches[1] . ' ' . $matches[2]);
+			if (strlen($result['street']) > 70) {
+				$result['street'] = substr($result['street'], 0, 70);
+			}
+		}
+		// Standard format: Street name followed by house number
+		elseif (preg_match('/^(.+?)\s+([0-9]+[a-zA-Z]?(?:\s*[-\/]\s*[0-9]+[a-zA-Z]?)?)$/u', $line1, $matches)) {
+			$result['street'] = trim($matches[1]);
+			$result['houseNumber'] = trim($matches[2]);
+			
+			// Validate field lengths
+			if (strlen($result['street']) > 70) {
+				$result['street'] = substr($result['street'], 0, 70);
+			}
+			if (strlen($result['houseNumber']) > 16) {
+				$result['houseNumber'] = substr($result['houseNumber'], 0, 16);
+			}
+		}
+		// No house number found - entire line is street
+		else {
+			$result['street'] = $line1;
+			if (strlen($result['street']) > 70) {
+				$result['street'] = substr($result['street'], 0, 70);
+			}
+		}
+	}
+	
+	// Mark as valid if mandatory fields are present
+	if (!empty($result['postcode']) && !empty($result['city'])) {
+		$result['valid'] = true;
+	}
+	
+	return $result;
 }
 
 function centertxt($msg, $fontfile, $fontsize, $imgx, $imgy) {
@@ -414,10 +488,25 @@ else {
 	else {	
 		if(!empty($LINEDELIM)) {
 			$CRAddressLines = explode($LINEDELIM, $CRAddress_raw);
-			$CRAddressLine1 = substr($CRAddressLines[0], 0, 70);
-			$CRAddressLine2 = substr($CRAddressLines[1], 0, 70);
-			$QRCONTENT["CRAddressline1"] = $CRAddressLine1;
-			$QRCONTENT["CRAddressline2"] = $CRAddressLine2;
+			$CRAddressLine1 = isset($CRAddressLines[0]) ? $CRAddressLines[0] : '';
+			$CRAddressLine2 = isset($CRAddressLines[1]) ? $CRAddressLines[1] : '';
+			
+			// Parse to structured format
+			$parsed = parse_swiss_address($CRAddressLine1, $CRAddressLine2);
+			
+			if (!$parsed['valid']) {
+				$errmsg[0] = "Kreditor-Adresse ungültig!";
+				$errmsg[1] = "Fehler: " . implode(', ', $parsed['errors']);
+				$errmsg[2] = "PLZ und Ort sind obligatorisch!";
+				err2img($errmsg, 18, 260, 400, 400);
+				exit;
+			}
+			
+			// Assign structured fields
+			$QRCONTENT["CRAddressline1"] = $parsed['street'];
+			$QRCONTENT["CRAddressline2"] = $parsed['houseNumber'];
+			$QRCONTENT["CRPostalcode"] = $parsed['postcode'];
+			$QRCONTENT["CRCity"] = $parsed['city'];
 		}
 	}
 }
@@ -524,11 +613,25 @@ else {
 	else {	
 		if(!empty($LINEDELIM)) {
 			$UDAddressLines = explode($LINEDELIM, $UDAddress_raw);
-			$UDAddressLine1 = substr($UDAddressLines[0], 0, 70);
-			$UDAddressLine2 = substr($UDAddressLines[1], 0, 70);		
-			$QRCONTENT["UDAddressline1"] = $UDAddressLine1;
-			$QRCONTENT["UDAddressline2"] = $UDAddressLine2;
-		}
+			$UDAddressLine1 = isset($UDAddressLines[0]) ? $UDAddressLines[0] : '';
+			$UDAddressLine2 = isset($UDAddressLines[1]) ? $UDAddressLines[1] : '';
+			
+			// Parse to structured format
+			$parsed = parse_swiss_address($UDAddressLine1, $UDAddressLine2);
+			
+			if (!$parsed['valid']) {
+				$errmsg[0] = "Debitor-Adresse ungültig!";
+				$errmsg[1] = "Fehler: " . implode(', ', $parsed['errors']);
+				$errmsg[2] = "PLZ und Ort sind obligatorisch!";
+				err2img($errmsg, 18, 260, 400, 400);
+				exit;
+			}
+			
+			// Assign structured fields
+			$QRCONTENT["UDAddressline1"] = $parsed['street'];
+			$QRCONTENT["UDAddressline2"] = $parsed['houseNumber'];
+			$QRCONTENT["UDPostalcode"] = $parsed['postcode'];
+			$QRCONTENT["UDCity"] = $parsed['city'];		}
 	}
 }
 
