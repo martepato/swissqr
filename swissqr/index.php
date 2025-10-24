@@ -146,6 +146,7 @@ function err2img ($imgtxtlines, $imgfontsize, $ystart, $imgx, $imgy) {
 	imagesetthickness ( $errimg, 8 );
 	imageline( $errimg, 30, 200, 370, 200, $line_colour );
 
+	ob_clean();
 	header( "Content-type: image/png" );
 	imagepng( $errimg );
 	imagecolordeallocate( $errimg, $line_colour );
