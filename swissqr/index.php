@@ -52,7 +52,7 @@ $QRCONTENT = array(
 #### ==== FUNCTIONS ==== ####
 
 function validate_str($str) {
-    return !preg_match('/[^A-Za-z0-9.,:\'\+\-\/()?!"#%&*;<>÷=@_$£\[\]{}` ´~àáâäçèéêëìíîïñòóôöùúûüýßÀÁÂÄÇÈÉÊËÌÍÎÏÒÓÔÖÙÚÛÜÑ]/', $str);
+    return !preg_match('/[^A-Za-z0-9.,:\'\’+\-\/()?!"#%&*;<>÷=@_$£\[\]{}`´~\\\\àáâäçèéêëìíîïñòóôöùúûüýßÀÁÂÄÇÈÉÊËÌÍÎÏÒÓÔÖÙÚÛÜÑ]/u', $str);
 }
 /**
  * Parse Swiss address from unstructured format
