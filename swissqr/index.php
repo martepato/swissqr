@@ -637,7 +637,7 @@ else {
 }
 
 $qrcontent_str = rtrim(implode("\n", $QRCONTENT));
-$qrencode = "'".$QRENCODEBIN."' -d $QR_RESOLUTION -l $QR_ERRCORR -v $QR_VERSION -s $QR_SIZE -m $QR_MARGIN -o - '".$qrcontent_str."'";
+$qrencode = escapeshellarg($QRENCODEBIN)." -d $QR_RESOLUTION -l $QR_ERRCORR -v $QR_VERSION -s $QR_SIZE -m $QR_MARGIN -o - ".escapeshellarg($qrcontent_str);
 $qrcode = shell_exec($qrencode);
 
 #print("<pre>".print_r($QRCONTENT,true)."</pre>");
