@@ -120,6 +120,7 @@ function centertxt($msg, $fontfile, $fontsize, $imgx, $imgy) {
 }
 
 function err2img ($imgtxtlines, $imgfontsize, $ystart, $imgx, $imgy) {
+	global $DIRPATH;
 	$errimg = imagecreate( $imgx, $imgy );							
 	$background  = imagecolorallocate( $errimg, 204, 104, 204 );
 	$text_colour = imagecolorallocate( $errimg, 244, 244, 144 );
